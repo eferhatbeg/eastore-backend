@@ -28,6 +28,13 @@ export class UsersService {
     return this.userRepository.findOne({ where: { email } });
   }
 
+  async findByEmailWithRoles(email: string): Promise<User | null> {
+    return this.userRepository.findOne({
+      where: { email },
+      relations: ['roles'],
+    });
+  }
+
   async register(email: string, password: string): Promise<Partial<User>> {
     const existingUser = await this.findByEmail(email);
     if (existingUser) {
