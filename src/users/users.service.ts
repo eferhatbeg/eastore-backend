@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Role } from './entities/role.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 import * as bcrypt from 'bcrypt';
 @Injectable()
 export class UsersService {
@@ -11,6 +12,8 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
+    @InjectRepository(RefreshToken)
+    private readonly refreshTokenRepository: Repository<RefreshToken>,
   ) {}
 
   findAll() {
@@ -72,5 +75,48 @@ export class UsersService {
 
   async comparePasswords(password: string, hash: string): Promise<boolean> {
     return bcrypt.compare(password, hash);
+  }
+
+  async storeRefreshToken(
+    userId: number,
+    refreshToken: string,
+    expiresAt: Date,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const tokenHash = await this.hashPassword(refreshToken);
+
+    const tokenEntity = this.refreshTokenRepository.create({
+      user,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    });
+
+    await this.refreshTokenRepository.save(tokenEntity);
+  }
+
+  async validateRefreshToken(
+    userId: number,
+    refreshToken: string,
+  ): Promise<boolean> {
+    const tokens = await this.refreshTokenRepository.find({
+      where: { user: { id: userId } },
+    });
+
+    const now = new Date();
+    for (const token of tokens) {
+      if (token.revoked_at !== null) continue;
+      if (token.expires_at < now) continue;
+
+      const isMatch = await this.comparePasswords(
+        refreshToken,
+        token.token_hash,
+      );
+      if (isMatch) return true;
+    }
+    return false;
   }
 }
