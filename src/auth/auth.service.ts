@@ -88,4 +88,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
+
+  async logout(userId: number, refreshToken: string, revokeAll: boolean) {
+    if (revokeAll) {
+      await this.usersService.revokeAllRefreshTokens(userId);
+    } else {
+      await this.usersService.revokeRefreshToken(userId, refreshToken);
+    }
+  }
 }

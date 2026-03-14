@@ -119,4 +119,42 @@ export class UsersService {
     }
     return false;
   }
+
+  async revokeRefreshToken(userId: number, refreshToken: string): Promise<void> {
+    const tokens = await this.refreshTokenRepository.find({
+      where: { user: { id: userId } },
+    });
+
+    for (const token of tokens) {
+      if (token.revoked_at !== null) continue;
+
+      const isMatch = await this.comparePasswords(
+        refreshToken,
+        token.token_hash,
+      );
+      if (isMatch) {
+        token.revoked_at = new Date();
+        await this.refreshTokenRepository.save(token);
+        break;
+      }
+    }
+  }
+
+  async revokeAllRefreshTokens(userId: number): Promise<void> {
+    const tokens = await this.refreshTokenRepository.find({
+      where: { user: { id: userId } },
+    });
+
+    const now = new Date();
+    const tokensToSave = tokens
+      .filter(token => token.revoked_at === null)
+      .map(token => {
+        token.revoked_at = now;
+        return token;
+      });
+
+    if (tokensToSave.length > 0) {
+      await this.refreshTokenRepository.save(tokensToSave);
+    }
+  }
 }
